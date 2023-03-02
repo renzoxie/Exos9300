@@ -3,7 +3,7 @@
     Author: renzoxie@139.com
     Create Date: 26 FEB 2023
     Modified Date: 27 FEB 2023
-	Script Version: v0.99
+    Script Version: v0.99
 
 .SYNOPSIS
     Exos 9300 Installation Helper script
