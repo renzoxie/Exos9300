@@ -3,7 +3,7 @@
     Author: renzoxie@139.com
     Create Date: 26 FEB 2023
     Modified Date: 27 FEB 2023
-	Script Version: v0.99
+	Script Version: v1.00
 
 .SYNOPSIS
     Exos 9300 Installation Helper script
@@ -232,7 +232,7 @@ Start-Sleep -Milliseconds 800; Write-Host; Start-Sleep -Milliseconds 800
 Write-Host "-" -NoNewline -ForegroundColor yellow;Start-Sleep -Milliseconds 800;Write-Host "-" -NoNewline -ForegroundColor yellow;
 Start-Sleep -Milliseconds 800;Write-Host "-"-NoNewline -ForegroundColor yellow;Start-Sleep -Milliseconds 800; 
 Write-Host ">" -NoNewline -ForegroundColor yellow;Start-Sleep -Milliseconds 800;
-Write-Host " Checking and installing for Exos 9300 $Version ..." -ForegroundColor Yellow; Start-Sleep -Milliseconds 800
+Write-Host " Start installing applications for Exos 9300 $Version" -ForegroundColor Yellow; Start-Sleep -Milliseconds 800
 # check if dotnet 4.72 was installed
 $currentDotNetVersion = (Get-ChildItem 'HKLM:\SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Full' `
 | Get-ItemProperty | Select-Object Version).Version
@@ -246,10 +246,12 @@ If ($dotNetVersion -lt 4.7) {
 Else {
     Write-Host "DotNET framework 4.7.2 was Installed" -ForegroundColor Green
 }
-
+Start-Sleep -Seconds 1;
 # ---------------------------
 # windows optional features for Exos 9300
-$iisFeatures = [System.Collections.ArrayList]@(
+# Check the status of the IIS-HttpErrors and IIS-HttpLogging features
+Write-Host "Checking IIS features status, please wait ..."  -ForegroundColor Yellow
+$featureList  = @(
     "NetFx4Extended-ASPNET45", "IIS-WebServerRole", "IIS-WebServer", "IIS-CommonHttpFeatures", "IIS-Security", `
     "IIS-RequestFiltering", "IIS-StaticContent", "IIS-DefaultDocument", "IIS-DirectoryBrowsing", "IIS-HttpErrors", `
     "IIS-ApplicationDevelopment", "IIS-NetFxExtensibility45", "IIS-ISAPIExtensions", "IIS-ISAPIFilter", `
@@ -258,56 +260,29 @@ $iisFeatures = [System.Collections.ArrayList]@(
     "IIS-Performance", "IIS-HttpCompressionStatic", "IIS-WebServerManagementTools", "IIS-ManagementConsole", "IIS-ManagementScriptingTools", `
     "IIS-ManagementService", "NetFx3ServerFeatures", "NetFx3"
 )
-$disabledFeatures = @();
-$totalFeatures = $iisFeatures.count;
-Try { 
-   	Write-Host "Checking IIS features status, please wait ..." 
-	For ($i=0; $i -lt $totalFeatures; $i++) {
-		$feature = $iisFeatures[$i]	
-        $featureList = Get-WindowsOptionalFeature -Online | `
-		    Where-Object {$_.FeatureName -eq $feature}
 
-		# add feature in disabledFeatures
-		If ($featureList.State -eq "Disabled") {
-		    $disabledFeatures += $feature;
-		}
-
-        # Show progress bar
-        Write-Progress -PercentComplete ($i / $totalFeatures * 100) -Activity "Checking features status" `
-            -Status "$([math]::Round(($i / $totalFeatures * 100),0))%";
-        Start-Sleep -Milliseconds 10;
-	}
-    # finish progress bar once checking completed
-    Write-Progress -Completed -Activity "Completed" -Status "100%";
-    Start-Sleep -Seconds 1;
-	$countDisable = $disabledFeatures.length
-    # install IIS features after checking
-    foreach ($disabled in $disabledFeatures) {
-        Enable-WindowsOptionalFeature -Online -FeatureName $disabled -All -NoRestart `
-            -ErrorAction Silentlycontinue -WarningAction SilentlyContinue | Out-Null;
-        $countDisable -= 1;
+foreach ($feature in $featureList) {
+    $featureInfo = Get-WindowsOptionalFeature -Online -FeatureName $feature
+    if ($featureInfo.State -eq "Disabled") {
+        Write-Output "$feature is $($featureInfo.State). Enabling it..."
+        Enable-WindowsOptionalFeature -Online -FeatureName $feature -All -NoRestart `
+        -ErrorAction Silentlycontinue -WarningAction SilentlyContinue | Out-Null;
     }
-    if ($countDisable -eq 0) {
-        Write-Host "ALL IIS features Exos 9300 requires are ready" -ForegroundColor Cyan;
-        Start-Sleep -Seconds 1;
+    else {
+        Write-Host "$feature is already $($featureInfo.State)" -ForegroundColor Green
     }
-} Catch {
-	Write-Warning -Message " $($Error[0].Exception.Message)"
-	Exit
 }
 
 #------------------------------
 # check and install dotnet-host
 Install-Program -pName $dotnetHost -InstallerPath $dotnetHostFileName -Arguments "/quiet /norestart";
-
 #------------------------------
 # check and install Erlang 
+#Install-Program -pName $erlang -InstallerPath $erlangFileName -Arguments "/S /n" 
 Install-Program -pName $erlang -InstallerPath $erlangFileName -Arguments "/S /n" 
-
 #------------------------------
 # check and install RabbitMQ Server
 Install-Program -pName $rabbitMq -InstallerPath $rabbitMqFileName -Arguments "/S";
-
 #------------------------------
 # SQL related 
 #------------------------------
@@ -352,7 +327,7 @@ Switch ($matchAsBool) {
             }
             
             If (Test-Path -Path $sqlExprFileName -PathType Leaf) { 
-                Write-Host "Download SQLEXPR_x64_ENU sucessed" -ForegroundColor Green 
+                Write-Host "Download SQLEXPR_x64_ENU succeeded" -ForegroundColor Green 
                 Remove-Item -Path "$dirAddons/output.txt" -Force -ErrorAction SilentlyContinue
             }
         }
