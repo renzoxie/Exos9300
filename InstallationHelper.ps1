@@ -1,9 +1,9 @@
-﻿<#
+<#
 .NOTES
     Author: renzoxie@139.com
     Create Date: 26 FEB 2023
     Modified Date: 27 FEB 2023
-    Script Version: v0.99
+	Script Version: v0.99
 
 .SYNOPSIS
     Exos 9300 Installation Helper script
@@ -34,22 +34,23 @@ $ErrorActionPreference = 'stop'
 # root location
 If ($psVer -lt 5.1) {
     # script location
-    $PSScriptRoot = ($pwd).path
+    $MyScriptRoot = ($pwd).path
 } 
 Else {
     # set charset
     $PSDefaultParameterValues['*:Encoding'] = 'utf8';
     # Support for TLS 1.2
     [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072;
+    $MyScriptRoot = $PSScriptRoot
 }
 # ---------------------------
 # Directory name in root
-$packageFolders =  Get-ChildItem ($PSScriptRoot) | Select-Object Name | Sort-Object -Property Name
+$packageFolders =  Get-ChildItem ($MyScriptRoot) | Select-Object Name | Sort-Object -Property Name
 # Root folder as path
 $absPackageFolders = @()
 For ($i=0; $i -lt ($packageFolders.Length-1); $i++) {
     $dirName = $packageFolders[$i].Name;
-    $absPackageFolders += Join-Path $PSScriptRoot $dirName;
+    $absPackageFolders += Join-Path $MyScriptRoot $dirName;
 }
 
 $dirAddons = $absPackageFolders[0];
@@ -194,7 +195,7 @@ Function Install-Program {
 
 # ---------------------------
 # Download a file and return bool value for fileExist
-Function Download-File {
+Function Save-File {
     param (
         [string]$Name,
         [string]$URL,
@@ -279,19 +280,19 @@ Try {
     # finish progress bar once checking completed
     Write-Progress -Completed -Activity "Completed" -Status "100%";
     Start-Sleep -Seconds 1;
-	
+	$countDisable = $disabledFeatures.length
     # install IIS features after checking
     foreach ($disabled in $disabledFeatures) {
         Enable-WindowsOptionalFeature -Online -FeatureName $disabled -All -NoRestart `
             -ErrorAction Silentlycontinue -WarningAction SilentlyContinue | Out-Null;
-        $disabledFeatures.length -= 1;
+        $countDisable -= 1;
     }
-    if ($disabledFeatures.length -eq 0) {
+    if ($countDisable -eq 0) {
         Write-Host "ALL IIS features Exos 9300 requires are ready" -ForegroundColor Cyan;
         Start-Sleep -Seconds 1;
     }
 } Catch {
-	Write-Warning -Message "Oops, fail to add IIS features for Exos 9300"
+	Write-Warning -Message " $($Error[0].Exception.Message)"
 	Exit
 }
 
@@ -317,7 +318,6 @@ $argFile = '/Q /IAcceptSQLServerLicenseTerms /ACTION=install /FEATURES=SQL /INST
 $argFile += '/SQLSVCACCOUNT="NT Authority\System" /SQLSYSADMINACCOUNTS="BUILTIN\Administrators" /UpdateEnabled="False" '
 $argFile += '/AGTSVCACCOUNT="NT Authority\System" /SECURITYMODE=SQL /SAPWD="Exos9300"'
 [bool]$matchAsBool = $installedPrograms -match $SqlServerProductName;
-$sql = "Microsoft SQL Server 2019 (64-bit)"
 $netSqlExprFileName = Join-Path $dirAddons 'SQL2019-SSEI-Expr.exe';
 $sqlExprFileName = Join-Path $dirAddons 'SQLEXPR_x64_ENU.exe';      
 Switch ($matchAsBool) {
@@ -329,12 +329,12 @@ Switch ($matchAsBool) {
         If (-Not (Test-Path -Path $sqlExprFileName -PathType Leaf)) {
             # if netSQLExpr not exit
             If ( -Not (Test-Path -Path $netSqlExprFileName -PathType Leaf) ) {
-                Download-File -Name "SQL2019-SSEI-Expr" -URL $SseiExprUrl -DwPathName $netSqlExprFileName   
+                Save-File -Name "SQL2019-SSEI-Expr" -URL $SseiExprUrl -DwPathName $netSqlExprFileName   
             }
             Else {
                 $exeVer = Get-FileVersion -testFile $netSqlExprFileName; 
                 If ($exeVer -ne '15.2204.5490.2') {
-                    Download-File -Name "SQL2019-SSEI-Expr" -URL $SseiExprUrl -DwPathName $netSqlExprFileName   
+                    Save-File -Name "SQL2019-SSEI-Expr" -URL $SseiExprUrl -DwPathName $netSqlExprFileName   
                 }
             }
 
@@ -378,12 +378,11 @@ If ($ssmsMatchAsBool) {
 } Else {
     If($fileMatch) {
         $fileName = (Get-ChildItem -Path $dirAddons | Where-Object { $_.Name -match $regex }).Name
-        $fileNameNoExtention = $fileName.Substring(0, $fileName.Length - 4)
         $ssmsFileName = Join-Path $dirAddons $fileName
         Install-Program -pName $ssms -InstallerPath $ssmsFileName -Arguments "/quiet /norestart"
     } Else {
         If (Test-Valid4Download -URL $ssmsUrl) {
-            Download-File -Name $ssms -URL $ssmsUrl -DwPathName $ssmsFileName
+           Save-File -Name $ssms -URL $ssmsUrl -DwPathName $ssmsFileName
             If($fileExist) {
                 Install-Program -pName $ssms -InstallerPath $ssmsFileName -Arguments "/quiet /norestart"
             }
