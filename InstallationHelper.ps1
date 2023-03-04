@@ -3,7 +3,7 @@
     Author: renzoxie@139.com
     Create Date: 26 FEB 2023
     Modified Date: 27 FEB 2023
-	Script Version: v1.00
+	Script Version: v1.01
 
 .SYNOPSIS
     Exos 9300 Installation Helper script
@@ -176,6 +176,16 @@ Function Install-Program {
 
         try {
             $process = [System.Diagnostics.Process]::Start($processStartInfo)
+            for($i = 0; $i -le 100; $i = ($i + 1) % 100)
+            {
+                Write-Progress -Activity "$pName" -PercentComplete $i `
+                               -Status "Installing $pName";
+                Start-Sleep -Milliseconds 200;
+                if ($process.HasExited) {
+                    Write-Progress -Completed -Activity "Completed" -Status "1";
+                    break;
+                }
+            }
             $process.WaitForExit()
         }
         catch {
@@ -264,7 +274,7 @@ $featureList  = @(
 foreach ($feature in $featureList) {
     $featureInfo = Get-WindowsOptionalFeature -Online -FeatureName $feature
     if ($featureInfo.State -eq "Disabled") {
-        Write-Output "$feature is $($featureInfo.State). Enabling it..."
+        # Write-Output "$feature is $($featureInfo.State). Enabling it..."
         Enable-WindowsOptionalFeature -Online -FeatureName $feature -All -NoRestart `
         -ErrorAction Silentlycontinue -WarningAction SilentlyContinue | Out-Null;
     }
@@ -285,7 +295,6 @@ Install-Program -pName $erlang -InstallerPath $erlangFileName -Arguments "/S /n"
 Install-Program -pName $rabbitMq -InstallerPath $rabbitMqFileName -Arguments "/S";
 #------------------------------
 # SQL related 
-#------------------------------
 $installedPrograms = Get-WmiObject -Class Win32_Product | Select-Object -Property Name;
 $SqlServerProductName = "Microsoft SQL Server 2019";
 $SseiExprUrl = "https://go.microsoft.com/fwlink/?LinkID=866658";
