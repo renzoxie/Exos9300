@@ -3,7 +3,7 @@
     Author: renzoxie@139.com
     Create Date: 26 FEB 2023
     Modified Date: 27 FEB 2023
-	Script Version: v1.01
+	Script Version: v1.02
 
 .SYNOPSIS
     Exos 9300 Installation Helper script
@@ -54,9 +54,6 @@ For ($i=0; $i -lt ($packageFolders.Length-1); $i++) {
 }
 
 $dirAddons = $absPackageFolders[0];
-$dirDatabase = $absPackageFolders[1];
-$dirService = $absPackageFolders[4];
-$dirDialog = $absPackageFolders[2];
 
 Switch ($Version) {
     '4.2.2' {
